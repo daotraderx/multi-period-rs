@@ -1,0 +1,111 @@
+//© DaoTraderX
+//modified from RS Rating created by Fred6724
+//@version=5
+indicator(title='Multi-period Relative Strength', shorttitle='Multi-period-RS', overlay=false)
+
+// Input for comparative symbol
+comparativeTickerId = input('SPY', title='Comparative Symbol (usually SPY)')
+
+// Display options for each timeframe
+show_weekly = input(true, title='Show Weekly RS (5 days)')
+show_monthly = input(true, title='Show Monthly RS (22 days)')
+show_quarterly = input(true, title='Show Quarterly RS (63 days)')
+show_yearly = input(true, title='Show Yearly RS (Weighted Average)')
+
+// Color options for each timeframe
+weekly_color = input(color.green, title='Weekly RS Line Color')
+monthly_color = input(color.blue, title='Monthly RS Line Color')
+quarterly_color = input(color.purple, title='Quarterly RS Line Color')
+yearly_color = input(color.red, title='Yearly RS Line Color')
+divider_color = input(color.gray, title='Divider Line Color')
+
+// Get time periods and handle stocks with limited history
+n5 = bar_index < 5 ? bar_index : 5     // Weekly
+n22 = bar_index < 22 ? bar_index : 22  // Monthly
+n63 = bar_index < 63 ? bar_index : 63  // Quarterly
+n126 = bar_index < 126 ? bar_index : 126
+n189 = bar_index < 189 ? bar_index : 189
+n252 = bar_index < 252 ? bar_index : 252
+
+// Calculation of performances for current stock
+stockClose = close
+stockClose5 = request.security(syminfo.tickerid, timeframe.period, close[n5])
+stockClose22 = request.security(syminfo.tickerid, timeframe.period, close[n22])
+stockClose63 = request.security(syminfo.tickerid, timeframe.period, close[n63])
+stockClose126 = request.security(syminfo.tickerid, timeframe.period, close[n126])
+stockClose189 = request.security(syminfo.tickerid, timeframe.period, close[n189])
+stockClose252 = request.security(syminfo.tickerid, timeframe.period, close[n252])
+
+stockPerf5 = (stockClose/stockClose5) - 1
+stockPerf22 = (stockClose/stockClose22) - 1
+stockPerf63 = (stockClose/stockClose63) - 1
+stockPerf126 = (stockClose/stockClose126) - 1
+stockPerf189 = (stockClose/stockClose189) - 1
+stockPerf252 = (stockClose/stockClose252) - 1
+
+// Calculation of performances for SPY or reference ticker
+spyClose = request.security(comparativeTickerId, timeframe.period, close)
+spyClose5 = request.security(comparativeTickerId, timeframe.period, close[n5])
+spyClose22 = request.security(comparativeTickerId, timeframe.period, close[n22])
+spyClose63 = request.security(comparativeTickerId, timeframe.period, close[n63])
+spyClose126 = request.security(comparativeTickerId, timeframe.period, close[n126])
+spyClose189 = request.security(comparativeTickerId, timeframe.period, close[n189])
+spyClose252 = request.security(comparativeTickerId, timeframe.period, close[n252])
+
+spyPerf5 = (spyClose/spyClose5) - 1
+spyPerf22 = (spyClose/spyClose22) - 1
+spyPerf63 = (spyClose/spyClose63) - 1
+spyPerf126 = (spyClose/spyClose126) - 1
+spyPerf189 = (spyClose/spyClose189) - 1
+spyPerf252 = (spyClose/spyClose252) - 1
+
+// Calculate RS for simple timeframes using percentage gains approach
+rs_weekly = (1 + stockPerf5) / (1 + spyPerf5)
+rs_monthly = (1 + stockPerf22) / (1 + spyPerf22)
+rs_quarterly = (1 + stockPerf63) / (1 + spyPerf63)
+
+// Calculate Yearly RS using weighted average as specified
+rs_stock_yearly = 0.4*stockPerf63 + 0.2*stockPerf126 + 0.2*stockPerf189 + 0.2*stockPerf252
+rs_spy_yearly = 0.4*spyPerf63 + 0.2*spyPerf126 + 0.2*spyPerf189 + 0.2*spyPerf252
+rs_yearly = (1 + rs_stock_yearly) / (1 + rs_spy_yearly)
+
+// Plotting with conditional visibility
+plot(show_weekly ? rs_weekly : na, title='Weekly RS', color=weekly_color, linewidth=2)
+plot(show_monthly ? rs_monthly : na, title='Monthly RS', color=monthly_color, linewidth=2)
+plot(show_quarterly ? rs_quarterly : na, title='Quarterly RS', color=quarterly_color, linewidth=2)
+plot(show_yearly ? rs_yearly : na, title='Yearly RS (Weighted)', color=yearly_color, linewidth=2)
+
+// Divider line at 1.0 to separate outperformance from underperformance
+hline(1.0, title='Outperform/Underperform Line', color=divider_color, linestyle=hline.style_dashed)
+
+// Display values as labels on the last bar
+if barstate.islast
+    var table info = table.new(position.top_right, 4, 5, border_width=1)
+    
+    table.cell(info, 0, 0, "Relative Strength", bgcolor=color.gray, text_color=color.white)
+    table.cell(info, 1, 0, "Value", bgcolor=color.gray, text_color=color.white)
+    table.cell(info, 2, 0, "Status", bgcolor=color.gray, text_color=color.white)
+    
+    if show_weekly
+        table.cell(info, 0, 1, "Weekly (5d)", text_color=weekly_color)
+        table.cell(info, 1, 1, str.tostring(rs_weekly, "#.###"), text_color=weekly_color)
+        table.cell(info, 2, 1, rs_weekly >= 1 ? "Outperform" : "Underperform", 
+                  text_color=rs_weekly >= 1 ? color.green : color.red)
+    
+    if show_monthly
+        table.cell(info, 0, 2, "Monthly (22d)", text_color=monthly_color)
+        table.cell(info, 1, 2, str.tostring(rs_monthly, "#.###"), text_color=monthly_color)
+        table.cell(info, 2, 2, rs_monthly >= 1 ? "Outperform" : "Underperform", 
+                  text_color=rs_monthly >= 1 ? color.green : color.red)
+    
+    if show_quarterly
+        table.cell(info, 0, 3, "Quarterly (63d)", text_color=quarterly_color)
+        table.cell(info, 1, 3, str.tostring(rs_quarterly, "#.###"), text_color=quarterly_color)
+        table.cell(info, 2, 3, rs_quarterly >= 1 ? "Outperform" : "Underperform", 
+                  text_color=rs_quarterly >= 1 ? color.green : color.red)
+    
+    if show_yearly
+        table.cell(info, 0, 4, "Yearly (Weighted)", text_color=yearly_color)
+        table.cell(info, 1, 4, str.tostring(rs_yearly, "#.###"), text_color=yearly_color)
+        table.cell(info, 2, 4, rs_yearly >= 1 ? "Outperform" : "Underperform", 
+                  text_color=rs_yearly >= 1 ? color.green : color.red)
